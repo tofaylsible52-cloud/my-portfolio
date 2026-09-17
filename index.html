@@ -4,6 +4,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- Enforce strict-origin-when-cross-origin policy to completely fix YouTube Error 153 -->
+    <meta name="referrer" content="strict-origin-when-cross-origin">
     <title>Tofayel Ahmad Shible | Visual Creator & AI Specialist</title>
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -175,6 +177,7 @@
             <div class="flex flex-wrap items-center justify-center gap-2 md:gap-3">
                 <button onclick="toggleSelectAll()" id="selectAllBtn" class="bg-gray-800 hover:bg-gray-700 text-gray-300 px-3 py-1.5 rounded-xl text-xs font-bold transition admin-only hidden">Select All</button>
                 <button onclick="deleteSelectedBatch()" id="deleteBatchBtn" class="bg-red-600/80 hover:bg-red-600 text-white px-3 py-1.5 rounded-xl text-xs font-bold transition hidden admin-only"><i class="fa-solid fa-trash mr-1"></i> Delete Selected</button>
+                <!-- Dynamic Add Button [2, 3] -->
                 <button onclick="addNewWorkItem()" id="addWorkBtn" class="bg-gradient-to-r from-coralAccent to-rose-600 hover:opacity-90 text-white px-4 py-2 rounded-xl text-xs font-bold shadow-lg shadow-coralAccent/30 flex items-center gap-2 transition transform hover:scale-105 admin-only hidden">
                     <i class="fa-solid fa-plus text-sm"></i> Add New Item
                 </button>
@@ -195,8 +198,10 @@
             <button onclick="closeLightbox()" class="absolute top-3 right-3 w-8 h-8 rounded-full bg-gray-800 hover:bg-gray-700 text-white flex items-center justify-center z-10 text-base transition"><i class="fa-solid fa-xmark"></i></button>
             
             <div id="lightboxMediaContainer" class="md:w-3/5 h-72 sm:h-88 md:h-[480px] bg-gray-950 rounded-xl md:rounded-2xl flex items-center justify-center p-1 border border-gray-800 overflow-hidden relative">
-                <img id="lightboxImgBg" src="" class="absolute inset-0 w-full h-full object-cover filter blur-xl opacity-30 pointer-events-none">
-                <img id="lightboxImg" src="" class="relative z-10 max-w-full max-h-full object-cover rounded-lg">
+                <!-- Blurred Glow -->
+                <div id="lightboxGlowContainer" class="absolute inset-0 w-full h-full pointer-events-none"></div>
+                <!-- Dynamic Media Content Container [2] -->
+                <div id="lightboxMediaContent" class="relative z-10 w-full h-full flex items-center justify-center"></div>
             </div>
 
             <div class="md:w-2/5 flex flex-col justify-between space-y-3">
@@ -641,20 +646,23 @@
         localStorage.setItem('tofayelTotalViews', viewCount);
 
         window.addEventListener('DOMContentLoaded', () => {
-            // Auto-Migration of old Google Drive/LH3 Links to new stable thumbnail format
+            // Auto-Migration of old Google Drive/LH3 Links to new stable thumbnail format (sz=s2000)
             let dataChanged = false;
             for (let cat in portfolioData) {
                 portfolioData[cat].forEach(item => {
-                    if (item.url && (item.url.includes('drive.google.com/uc') || item.url.includes('lh3.googleusercontent.com/d/'))) {
+                    if (item.url && (item.url.includes('drive.google.com/uc') || item.url.includes('lh3.googleusercontent.com/d/') || item.url.includes('sz=w1000'))) {
                         let fileId = '';
                         if (item.url.includes('lh3.googleusercontent.com/d/')) {
                             fileId = item.url.split('/d/')[1]?.split(/[?#=]/)[0];
+                        } else if (item.url.includes('sz=w1000')) {
+                            let urlParams = new URLSearchParams(item.url.split('?')[1]);
+                            fileId = urlParams.get('id');
                         } else {
                             let urlParams = new URLSearchParams(item.url.split('?')[1]);
                             fileId = urlParams.get('id');
                         }
                         if (fileId) {
-                            item.url = `https://drive.google.com/thumbnail?id=${fileId}&sz=w1000`;
+                            item.url = `https://drive.google.com/thumbnail?id=${fileId}&sz=s2000`;
                             dataChanged = true;
                         }
                     }
@@ -809,7 +817,7 @@
             if (!isAdminLoggedIn) return;
             let newUrl = prompt("Enter Image URL or Google Drive Link for Profile Picture:");
             if (newUrl && newUrl.trim() !== "") {
-                newUrl = convertLink(newUrl.trim(), 'Products');
+                newUrl = convertLink(newUrl.trim());
                 document.getElementById('profileImageTag').src = newUrl;
                 localStorage.setItem('tofayelProfilePic', newUrl);
                 alert("Profile picture updated successfully!");
@@ -820,6 +828,26 @@
             activeCategory = category;
             document.getElementById('galleryTitle').innerText = `${category} Gallery`;
             document.getElementById('gallerySearchInput').value = '';
+            
+            // Dynamic Add Button Text & Styling [2, 3]
+            const addWorkBtn = document.getElementById('addWorkBtn');
+            if (addWorkBtn) {
+                if (isVideoCategory(category)) {
+                    addWorkBtn.innerHTML = `<i class="fa-brands fa-youtube text-sm"></i> Add YouTube Video`;
+                    addWorkBtn.className = "bg-gradient-to-r from-red-600 to-rose-600 hover:opacity-90 text-white px-4 py-2 rounded-xl text-xs font-bold shadow-lg shadow-red-600/30 flex items-center gap-2 transition transform hover:scale-105 admin-only";
+                } else {
+                    addWorkBtn.innerHTML = `<i class="fa-solid fa-image text-sm"></i> Add Design Work`;
+                    addWorkBtn.className = "bg-gradient-to-r from-coralAccent to-rose-600 hover:opacity-90 text-white px-4 py-2 rounded-xl text-xs font-bold shadow-lg shadow-coralAccent/30 flex items-center gap-2 transition transform hover:scale-105 admin-only";
+                }
+                
+                // Toggle visibility based on admin login state
+                if (!isAdminLoggedIn) {
+                    addWorkBtn.classList.add('hidden');
+                } else {
+                    addWorkBtn.classList.remove('hidden');
+                }
+            }
+
             renderGalleryGrid();
             document.getElementById('galleryModal').classList.remove('hidden');
             document.getElementById('galleryModal').classList.add('flex');
@@ -836,42 +864,77 @@
             }
         }
 
-        function convertLink(url, category) {
-            if (category === 'Reels/Promo' || category === 'Motion Video') {
-                if (url.includes('youtube.com/watch?v=')) {
-                    let vId = url.split('v=')[1]?.split('&')[0];
-                    if (vId) return `https://www.youtube.com/embed/${vId}`;
-                } else if (url.includes('youtu.be/')) {
-                    let vId = url.split('youtu.be/')[1]?.split('?')[0];
-                    if (vId) return `https://www.youtube.com/embed/${vId}`;
-                }
-            } else {
-                if (url.includes('drive.google.com')) {
-                    let fileIdMatch = url.match(/\/d\/([a-zA-Z0-9_-]+)/) || url.match(/id=([a-zA-Z0-9_-]+)/);
-                    if (fileIdMatch && fileIdMatch[1]) {
-                        // High-speed universally-supported Google direct thumbnail hosting
-                        return `https://drive.google.com/thumbnail?id=${fileIdMatch[1]}&sz=w1000`;
-                    }
+        function isVideoCategory(cat) {
+            return cat === 'Reels/Promo' || cat === 'Motion Video';
+        }
+
+        function convertLink(url) {
+            url = url.trim();
+            
+            // Auto-detect YouTube URL (Handles Standard, Short, Embed & Shorts links) [2]
+            let ytRegExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|shorts\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+            let ytMatch = url.match(ytRegExp);
+            if (ytMatch && ytMatch[2].length === 11) {
+                return `https://www.youtube.com/embed/${ytMatch[2]}`;
+            }
+            
+            // Auto-detect Google Drive URL (sz=s2000 for high resolution) [3]
+            if (url.includes('drive.google.com')) {
+                let fileIdMatch = url.match(/\/d\/([a-zA-Z0-9_-]+)/) || url.match(/id=([a-zA-Z0-9_-]+)/);
+                if (fileIdMatch && fileIdMatch[1]) {
+                    return `https://drive.google.com/thumbnail?id=${fileIdMatch[1]}&sz=s2000`;
                 }
             }
+            
             return url;
         }
 
-        function isVideoCategory(cat) {
-            return cat === 'Reels/Promo' || cat === 'Motion Video';
+        // Helper to extract video ID from embed URL
+        function getYouTubeIdFromEmbed(url) {
+            if (url.includes('youtube.com/embed/')) {
+                return url.split('/embed/')[1]?.split(/[?#]/)[0];
+            }
+            return null;
         }
 
         function openLightbox(index) {
             currentLightboxIndex = index;
             const item = portfolioData[activeCategory][index];
-            if (isVideoCategory(activeCategory)) return;
+            const isVideo = isVideoCategory(activeCategory);
 
-            document.getElementById('lightboxImgBg').src = item.url;
-            document.getElementById('lightboxImg').src = item.url;
+            const mediaContainer = document.getElementById('lightboxMediaContent');
+            const glowContainer = document.getElementById('lightboxGlowContainer');
             
+            if (isVideo) {
+                // Render iframe for seamless direct on-site playback [2]
+                // Added referrerpolicy="strict-origin-when-cross-origin" to fix YouTube Error 153
+                mediaContainer.innerHTML = `
+                    <iframe src="${item.url}?autoplay=1" class="w-full h-full border-0 rounded-xl" referrerpolicy="strict-origin-when-cross-origin" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>
+                `;
+                // Black glow for video
+                glowContainer.innerHTML = '';
+            } else {
+                // Render standard image with blurred background artwork glow
+                mediaContainer.innerHTML = `
+                    <img id="lightboxImg" src="${item.url}" class="relative z-10 w-full h-full object-contain rounded-xl">
+                `;
+                glowContainer.innerHTML = `
+                    <img src="${item.url}" class="absolute inset-0 w-full h-full object-cover filter blur-2xl opacity-60 pointer-events-none">
+                `;
+            }
+
             document.getElementById('lightboxTitle').innerText = item.title;
             document.getElementById('lightboxLikeCount').innerText = item.likes || 0;
-            document.getElementById('lightboxDownloadBtn').href = item.url;
+            
+            const downloadBtn = document.getElementById('lightboxDownloadBtn');
+            if (isVideo) {
+                // Link directly to YT for watching on official site if they want [2]
+                downloadBtn.innerHTML = `<i class="fa-brands fa-youtube"></i> Watch on YT`;
+                downloadBtn.href = item.url.replace('/embed/', '/watch?v=');
+            } else {
+                downloadBtn.innerHTML = `<i class="fa-solid fa-download text-base md:text-lg"></i> Download`;
+                downloadBtn.href = item.url;
+            }
             
             renderLightboxComments(item.comments || []);
             
@@ -880,6 +943,9 @@
         }
 
         function closeLightbox() {
+            // Completely destroy iframe to instantly halt background audio/video playback [2]
+            document.getElementById('lightboxMediaContent').innerHTML = '';
+            document.getElementById('lightboxGlowContainer').innerHTML = '';
             document.getElementById('lightboxModal').classList.add('hidden');
             document.getElementById('lightboxModal').classList.remove('flex');
         }
@@ -976,7 +1042,7 @@
                     card.addEventListener('dragover', (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; });
                     card.addEventListener('drop', (e) => {
                         e.preventDefault();
-                        if (draggedSrcIndex !== null && draggedSrcIndex !== index) {
+                        if (draggedSrcIndex !== null &&gedSrcIndex !== index) {
                             const movedItem = portfolioData[activeCategory].splice(draggedSrcIndex, 1)[0];
                             portfolioData[activeCategory].splice(index, 0, movedItem);
                             localStorage.setItem('tofayelPortfolioData', JSON.stringify(portfolioData));
@@ -989,25 +1055,44 @@
                 let commentsCount = (item.comments || []).length;
                 let isVideo = isVideoCategory(activeCategory);
 
-                let mediaHTML = isVideo ? 
-                    `<iframe src="${item.url}" class="w-full h-56 sm:h-64 object-cover pointer-events-auto" allowfullscreen></iframe>` :
-                    `<img src="${item.url}" class="absolute inset-0 w-full h-full object-cover filter blur-md opacity-30 pointer-events-none">
-                     <img src="${item.url}" class="relative z-10 w-full h-auto max-h-[480px] object-cover group-hover:scale-102 transition duration-300 rounded-lg" alt="${item.title}">`;
+                let mediaHTML = '';
+                if (isVideo) {
+                    // Extract high quality YouTube thumbnail with sleek red play overlay [2, 4]
+                    let ytId = getYouTubeIdFromEmbed(item.url);
+                    let thumbUrl = ytId ? `https://img.youtube.com/vi/${ytId}/hqdefault.jpg` : 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800'; [4]
+                    mediaHTML = `
+                        <div class="w-full h-48 sm:h-56 rounded-xl overflow-hidden mb-3 relative cursor-pointer group bg-gray-950 border border-gray-800" onclick="openLightbox(${index})" title="Click to watch video">
+                            <img src="${thumbUrl}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 block" alt="${item.title}"> [4]
+                            <!-- Sleek YouTube play overlay [2] -->
+                            <div class="absolute inset-0 bg-black/40 flex items-center justify-center transition group-hover:bg-black/20">
+                                <div class="w-14 h-14 bg-red-600 hover:bg-red-700 text-white rounded-full flex items-center justify-center shadow-lg shadow-red-600/40 transform group-hover:scale-110 transition duration-300">
+                                    <i class="fa-solid fa-play text-xl ml-1"></i>
+                                </div>
+                            </div>
+                            ${isAdminLoggedIn ? `
+                            <div class="absolute top-3 left-3 z-30" onclick="event.stopPropagation()">
+                                <input type="checkbox" data-index="${index}" class="item-checkbox w-5 h-5 accent-coralAccent cursor-pointer" onchange="checkBatchSelection()">
+                            </div>
+                            <button onclick="event.stopPropagation(); deleteSingleItem(${index})" class="absolute top-3 right-3 w-8 h-8 rounded-lg bg-red-600/80 hover:bg-red-600 text-white text-sm flex items-center justify-center opacity-0 group-hover:opacity-100 transition shadow-lg z-30" title="Delete"><i class="fa-solid fa-trash"></i></button>
+                            ` : ''}
+                        </div>
+                    `;
+                } else {
+                    mediaHTML = `
+                        <div class="w-full rounded-xl overflow-hidden mb-3 relative cursor-pointer" onclick="openLightbox(${index})" title="Click to view full screen">
+                            <img src="${item.url}" class="w-full h-auto rounded-xl group-hover:scale-105 transition-transform duration-500 block" alt="${item.title}">
+                            ${isAdminLoggedIn ? `
+                            <div class="absolute top-3 left-3 z-30" onclick="event.stopPropagation()">
+                                <input type="checkbox" data-index="${index}" class="item-checkbox w-5 h-5 accent-coralAccent cursor-pointer" onchange="checkBatchSelection()">
+                            </div>
+                            <button onclick="event.stopPropagation(); deleteSingleItem(${index})" class="absolute top-3 right-3 w-8 h-8 rounded-lg bg-red-600/80 hover:bg-red-600 text-white text-sm flex items-center justify-center opacity-0 group-hover:opacity-100 transition shadow-lg z-30" title="Delete"><i class="fa-solid fa-trash"></i></button>
+                            ` : ''}
+                        </div>
+                    `;
+                }
 
                 card.innerHTML = `
-                    <div class="w-full rounded-xl overflow-hidden mb-3 relative bg-gray-950 flex items-center justify-center p-0 border border-gray-800 ${isVideo ? 'h-56 sm:h-64' : 'h-auto'} ${isVideo ? '' : 'cursor-pointer'}" ${isVideo ? '' : `onclick="openLightbox(${index})" title="Click to view full screen"`}>
-                        ${mediaHTML}
-                        ${isVideo ? '' : `
-                        <div class="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition flex items-center justify-center text-white text-sm font-bold gap-1.5 z-20 pointer-events-none">
-                            <i class="fa-solid fa-expand text-xl text-coralAccent"></i>
-                        </div>`}
-                        ${isAdminLoggedIn ? `
-                        <div class="absolute top-3 left-3 z-30" onclick="event.stopPropagation()">
-                            <input type="checkbox" data-index="${index}" class="item-checkbox w-5 h-5 accent-coralAccent cursor-pointer" onchange="checkBatchSelection()">
-                        </div>
-                        <button onclick="event.stopPropagation(); deleteSingleItem(${index})" class="absolute top-3 right-3 w-8 h-8 rounded-lg bg-red-600/80 hover:bg-red-600 text-white text-sm flex items-center justify-center opacity-0 group-hover:opacity-100 transition shadow-lg z-30" title="Delete"><i class="fa-solid fa-trash"></i></button>
-                        ` : ''}
-                    </div>
+                    ${mediaHTML}
                     <div class="space-y-2 px-1 mt-auto">
                         <div class="flex justify-between items-center">
                             <h4 class="text-sm font-bold text-gray-200 truncate max-w-[150px]">${item.title}</h4>
@@ -1031,13 +1116,13 @@
 
         function addNewWorkItem() {
             if (!isAdminLoggedIn) return;
-            let promptText = isVideoCategory(activeCategory) ? 
-                "Paste YouTube Video URL (e.g., https://www.youtube.com/watch?v=...):" : 
-                "Paste Google Drive Link or Direct Image URL:";
             
+            // Unified clear prompt [2]
+            let promptText = "Paste YouTube Video Link (for Video section) OR Google Drive / Image URL (for Graphics):";
             let url = prompt(promptText);
+            
             if (url && url.trim() !== "") {
-                url = convertLink(url.trim(), activeCategory);
+                url = convertLink(url.trim());
                 const title = prompt("Enter Title for this work:", "My Creative Work");
                 if (!portfolioData[activeCategory]) portfolioData[activeCategory] = [];
                 
@@ -1191,7 +1276,7 @@
                 tool1Title: "গ্রাফিক্স ডিজাইন সফটওয়্যার",
                 tool2Title: "ভিডিও এডিটিং সফটওয়্যার",
                 tool3Title: "ডিজিটাল মার্কেটিং ও ওয়েব",
-                tool4Title: "জেনারেটিভ এআই টুলস",
+                tool4Title: "জেনারেティブ এআই টুলস",
                 expTitle: "পেশাদার অভিজ্ঞতা",
                 expMainTitle: "পেশাদার ভিজ্যুয়াল ডিজাইনার, ভিডিও এডিটর ও ডিজিটাল স্পেশালিস্ট",
                 expMainSub: "মূল টুলস: ফটোশপ, ইলাস্ট্রেটর, প্রিমিয়ার প্রো, ক্যাপকাট, ক্যানভা প্রো, ইনশট ও মেটা অ্যাডস",
@@ -1199,7 +1284,7 @@
                     "ফটোশপ ও ইলাস্ট্রেটর ব্যবহার করে নিখুঁত ইমেজ ম্যানিপুলেশন, ব্যাকগ্রাউন্ড রিমুভাল, ফটো রিটাচিং এবং ভেক্টর গ্রাফিক্সের কাজ সম্পন্ন করেছি।",
                     "উচ্চ ব্র্যান্ড কনসিস্টেন্সি বজায় রেখে প্রফেশনাল ব্যানার, পোস্টার, লোগো, বিজনেস কার্ড, আইডি কার্ড, টি-শার্ট, টাইপোগ্রাফি, মকাপ, প্রোডাক্টস এবং ইউটিউব থাম্বনেইল ডিজাইন করেছি।",
                     "প্রিমিয়ার প্রো, ক্যাপকাট ও ইনশট ব্যবহার করে ডায়নামিক ভিডিও এডিট, রিলস, প্রমোশনাল ক্লিপ, মোশন টেক্সট, ট্রানজিশন ও সিন্সড অডিও তৈরি করেছি।",
-                    "টার্গেটেড ফেসবুক বুস্টিং ক্যাম্পেইন সেটআপ করেছি, প্রোডাক্ট ল্যান্ডিং পেজ তৈরি করেছি এবং দ্রুত স্ক্রিপ্ট লেখা ও আইডিয়া বের করার জন্য এআই ওয়ার্কফ্লো বাস্তবায়ন করেছি।"
+                    "টার্গেটেড ফেসবুক বুস্টিং ক্যাম্পেইন সেটআপ করেছি, প্রোডাক্ট ল্যান্ডিং পেজ তৈরি করেছি এবং দ্রুত স্ক্রিপ্ট লেখা ও আইডিয়া বের করার জন্য এআই ওয়ার্কф্লো বাস্তবায়ন করেছি।"
                 ],
                 eduTitle: "একাডেমিক ও ইসলামিক যোগ্যতা",
                 edu1Title: "সানাভিয়া উলয়া (এইচএসসি/আলিম সমমান)",
