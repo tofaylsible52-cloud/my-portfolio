@@ -4,6 +4,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- Enforce strict-origin-when-cross-origin policy to completely fix YouTube Error 153 -->
+    <meta name="referrer" content="strict-origin-when-cross-origin">
     <title>Tofayel Ahmad Shible | Visual Creator & AI Specialist</title>
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -175,6 +177,7 @@
             <div class="flex flex-wrap items-center justify-center gap-2 md:gap-3">
                 <button onclick="toggleSelectAll()" id="selectAllBtn" class="bg-gray-800 hover:bg-gray-700 text-gray-300 px-3 py-1.5 rounded-xl text-xs font-bold transition admin-only hidden">Select All</button>
                 <button onclick="deleteSelectedBatch()" id="deleteBatchBtn" class="bg-red-600/80 hover:bg-red-600 text-white px-3 py-1.5 rounded-xl text-xs font-bold transition hidden admin-only"><i class="fa-solid fa-trash mr-1"></i> Delete Selected</button>
+                <!-- Dynamic Add Button [2, 3] -->
                 <button onclick="addNewWorkItem()" id="addWorkBtn" class="bg-gradient-to-r from-coralAccent to-rose-600 hover:opacity-90 text-white px-4 py-2 rounded-xl text-xs font-bold shadow-lg shadow-coralAccent/30 flex items-center gap-2 transition transform hover:scale-105 admin-only hidden">
                     <i class="fa-solid fa-plus text-sm"></i> Add New Item
                 </button>
@@ -195,9 +198,10 @@
             <button onclick="closeLightbox()" class="absolute top-3 right-3 w-8 h-8 rounded-full bg-gray-800 hover:bg-gray-700 text-white flex items-center justify-center z-10 text-base transition"><i class="fa-solid fa-xmark"></i></button>
             
             <div id="lightboxMediaContainer" class="md:w-3/5 h-72 sm:h-88 md:h-[480px] bg-gray-950 rounded-xl md:rounded-2xl flex items-center justify-center p-1 border border-gray-800 overflow-hidden relative">
-                <!-- Enhanced colorful blurred background effect [1.1.2] -->
-                <img id="lightboxImgBg" src="" class="absolute inset-0 w-full h-full object-cover filter blur-2xl opacity-60 pointer-events-none">
-                <img id="lightboxImg" src="" class="relative z-10 w-full h-full object-contain rounded-xl">
+                <!-- Blurred Glow -->
+                <div id="lightboxGlowContainer" class="absolute inset-0 w-full h-full pointer-events-none"></div>
+                <!-- Dynamic Media Content Container [2] -->
+                <div id="lightboxMediaContent" class="relative z-10 w-full h-full flex items-center justify-center"></div>
             </div>
 
             <div class="md:w-2/5 flex flex-col justify-between space-y-3">
@@ -824,6 +828,26 @@
             activeCategory = category;
             document.getElementById('galleryTitle').innerText = `${category} Gallery`;
             document.getElementById('gallerySearchInput').value = '';
+            
+            // Dynamic Add Button Text & Styling [2, 3]
+            const addWorkBtn = document.getElementById('addWorkBtn');
+            if (addWorkBtn) {
+                if (isVideoCategory(category)) {
+                    addWorkBtn.innerHTML = `<i class="fa-brands fa-youtube text-sm"></i> Add YouTube Video`;
+                    addWorkBtn.className = "bg-gradient-to-r from-red-600 to-rose-600 hover:opacity-90 text-white px-4 py-2 rounded-xl text-xs font-bold shadow-lg shadow-red-600/30 flex items-center gap-2 transition transform hover:scale-105 admin-only";
+                } else {
+                    addWorkBtn.innerHTML = `<i class="fa-solid fa-image text-sm"></i> Add Design Work`;
+                    addWorkBtn.className = "bg-gradient-to-r from-coralAccent to-rose-600 hover:opacity-90 text-white px-4 py-2 rounded-xl text-xs font-bold shadow-lg shadow-coralAccent/30 flex items-center gap-2 transition transform hover:scale-105 admin-only";
+                }
+                
+                // Toggle visibility based on admin login state
+                if (!isAdminLoggedIn) {
+                    addWorkBtn.classList.add('hidden');
+                } else {
+                    addWorkBtn.classList.remove('hidden');
+                }
+            }
+
             renderGalleryGrid();
             document.getElementById('galleryModal').classList.remove('hidden');
             document.getElementById('galleryModal').classList.add('flex');
@@ -865,17 +889,52 @@
             return url;
         }
 
+        // Helper to extract video ID from embed URL
+        function getYouTubeIdFromEmbed(url) {
+            if (url.includes('youtube.com/embed/')) {
+                return url.split('/embed/')[1]?.split(/[?#]/)[0];
+            }
+            return null;
+        }
+
         function openLightbox(index) {
             currentLightboxIndex = index;
             const item = portfolioData[activeCategory][index];
-            if (isVideoCategory(activeCategory)) return;
+            const isVideo = isVideoCategory(activeCategory);
 
-            document.getElementById('lightboxImgBg').src = item.url;
-            document.getElementById('lightboxImg').src = item.url;
+            const mediaContainer = document.getElementById('lightboxMediaContent');
+            const glowContainer = document.getElementById('lightboxGlowContainer');
             
+            if (isVideo) {
+                // Render iframe for seamless direct on-site playback [2]
+                // Added referrerpolicy="strict-origin-when-cross-origin" to fix YouTube Error 153
+                mediaContainer.innerHTML = `
+                    <iframe src="${item.url}?autoplay=1" class="w-full h-full border-0 rounded-xl" referrerpolicy="strict-origin-when-cross-origin" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>
+                `;
+                // Black glow for video
+                glowContainer.innerHTML = '';
+            } else {
+                // Render standard image with blurred background artwork glow
+                mediaContainer.innerHTML = `
+                    <img id="lightboxImg" src="${item.url}" class="relative z-10 w-full h-full object-contain rounded-xl">
+                `;
+                glowContainer.innerHTML = `
+                    <img src="${item.url}" class="absolute inset-0 w-full h-full object-cover filter blur-2xl opacity-60 pointer-events-none">
+                `;
+            }
+
             document.getElementById('lightboxTitle').innerText = item.title;
             document.getElementById('lightboxLikeCount').innerText = item.likes || 0;
-            document.getElementById('lightboxDownloadBtn').href = item.url;
+            
+            const downloadBtn = document.getElementById('lightboxDownloadBtn');
+            if (isVideo) {
+                // Link directly to YT for watching on official site if they want [2]
+                downloadBtn.innerHTML = `<i class="fa-brands fa-youtube"></i> Watch on YT`;
+                downloadBtn.href = item.url.replace('/embed/', '/watch?v=');
+            } else {
+                downloadBtn.innerHTML = `<i class="fa-solid fa-download text-base md:text-lg"></i> Download`;
+                downloadBtn.href = item.url;
+            }
             
             renderLightboxComments(item.comments || []);
             
@@ -884,6 +943,9 @@
         }
 
         function closeLightbox() {
+            // Completely destroy iframe to instantly halt background audio/video playback [2]
+            document.getElementById('lightboxMediaContent').innerHTML = '';
+            document.getElementById('lightboxGlowContainer').innerHTML = '';
             document.getElementById('lightboxModal').classList.add('hidden');
             document.getElementById('lightboxModal').classList.remove('flex');
         }
@@ -980,7 +1042,7 @@
                     card.addEventListener('dragover', (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; });
                     card.addEventListener('drop', (e) => {
                         e.preventDefault();
-                        if (draggedSrcIndex !== null && draggedSrcIndex !== index) {
+                        if (draggedSrcIndex !== null &&gedSrcIndex !== index) {
                             const movedItem = portfolioData[activeCategory].splice(draggedSrcIndex, 1)[0];
                             portfolioData[activeCategory].splice(index, 0, movedItem);
                             localStorage.setItem('tofayelPortfolioData', JSON.stringify(portfolioData));
@@ -995,15 +1057,36 @@
 
                 let mediaHTML = '';
                 if (isVideo) {
+                    // Extract high quality YouTube thumbnail with sleek red play overlay [2, 4]
+                    let ytId = getYouTubeIdFromEmbed(item.url);
+                    let thumbUrl = ytId ? `https://img.youtube.com/vi/${ytId}/hqdefault.jpg` : 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800'; [4]
                     mediaHTML = `
-                        <div class="w-full h-56 sm:h-64 rounded-xl overflow-hidden mb-3 relative bg-gray-950 flex items-center justify-center p-0 border border-gray-800 shadow-inner">
-                            <iframe src="${item.url}" class="w-full h-full border-0 pointer-events-auto" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>
+                        <div class="w-full h-48 sm:h-56 rounded-xl overflow-hidden mb-3 relative cursor-pointer group bg-gray-950 border border-gray-800" onclick="openLightbox(${index})" title="Click to watch video">
+                            <img src="${thumbUrl}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 block" alt="${item.title}"> [4]
+                            <!-- Sleek YouTube play overlay [2] -->
+                            <div class="absolute inset-0 bg-black/40 flex items-center justify-center transition group-hover:bg-black/20">
+                                <div class="w-14 h-14 bg-red-600 hover:bg-red-700 text-white rounded-full flex items-center justify-center shadow-lg shadow-red-600/40 transform group-hover:scale-110 transition duration-300">
+                                    <i class="fa-solid fa-play text-xl ml-1"></i>
+                                </div>
+                            </div>
+                            ${isAdminLoggedIn ? `
+                            <div class="absolute top-3 left-3 z-30" onclick="event.stopPropagation()">
+                                <input type="checkbox" data-index="${index}" class="item-checkbox w-5 h-5 accent-coralAccent cursor-pointer" onchange="checkBatchSelection()">
+                            </div>
+                            <button onclick="event.stopPropagation(); deleteSingleItem(${index})" class="absolute top-3 right-3 w-8 h-8 rounded-lg bg-red-600/80 hover:bg-red-600 text-white text-sm flex items-center justify-center opacity-0 group-hover:opacity-100 transition shadow-lg z-30" title="Delete"><i class="fa-solid fa-trash"></i></button>
+                            ` : ''}
                         </div>
                     `;
                 } else {
                     mediaHTML = `
                         <div class="w-full rounded-xl overflow-hidden mb-3 relative cursor-pointer" onclick="openLightbox(${index})" title="Click to view full screen">
                             <img src="${item.url}" class="w-full h-auto rounded-xl group-hover:scale-105 transition-transform duration-500 block" alt="${item.title}">
+                            ${isAdminLoggedIn ? `
+                            <div class="absolute top-3 left-3 z-30" onclick="event.stopPropagation()">
+                                <input type="checkbox" data-index="${index}" class="item-checkbox w-5 h-5 accent-coralAccent cursor-pointer" onchange="checkBatchSelection()">
+                            </div>
+                            <button onclick="event.stopPropagation(); deleteSingleItem(${index})" class="absolute top-3 right-3 w-8 h-8 rounded-lg bg-red-600/80 hover:bg-red-600 text-white text-sm flex items-center justify-center opacity-0 group-hover:opacity-100 transition shadow-lg z-30" title="Delete"><i class="fa-solid fa-trash"></i></button>
+                            ` : ''}
                         </div>
                     `;
                 }
