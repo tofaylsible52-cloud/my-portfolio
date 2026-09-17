@@ -578,7 +578,7 @@
                 <a href="https://www.facebook.com/profile.php?id=61592460241607" target="_blank" class="hover-zoom bg-gradient-to-r from-blue-700 to-blue-500 text-white px-6 py-3.5 rounded-2xl font-semibold shadow-lg shadow-blue-700/30 transition flex items-center gap-2">
                     <i class="fa-brands fa-facebook text-lg"></i> FB Page
                 </a>
-                <a href="https://www.facebook.com/tofaylahmad.sible" target="_blank" class="hover-zoom bg-sky-600 text-white px-6 py-3.5 rounded-2xl font-semibold shadow-lg shadow-sky-600/40 transition flex items-center gap-2">
+                <a href="https://www.facebook.com/tofaylahmad.sible" target="_blank" class="hover-zoom bg-gradient-to-r from-sky-600 to-blue-600 text-white px-6 py-3.5 rounded-2xl font-semibold shadow-lg shadow-sky-600/40 transition flex items-center gap-2">
                     <i class="fa-brands fa-facebook-f text-lg"></i> FB ID
                 </a>
                 <a href="https://behance.net/tofayelshible" target="_blank" class="hover-zoom bg-gradient-to-r from-indigo-600 to-blue-700 text-white px-6 py-3.5 rounded-2xl font-semibold shadow-lg shadow-indigo-600/40 transition flex items-center gap-2">
@@ -997,7 +997,7 @@
                 if (isVideo) {
                     mediaHTML = `
                         <div class="w-full h-56 sm:h-64 rounded-xl overflow-hidden mb-3 relative bg-gray-950 flex items-center justify-center p-0 border border-gray-800 shadow-inner">
-                            <iframe src="${item.url}" class="w-full h-full object-cover pointer-events-auto" allowfullscreen></iframe>
+                            <iframe src="${item.url}" class="w-full h-full border-0 pointer-events-auto" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>
                         </div>
                     `;
                 } else {
@@ -1034,7 +1034,8 @@
         function addNewWorkItem() {
             if (!isAdminLoggedIn) return;
             
-            let promptText = "Paste YouTube Link (for Videos) OR Google Drive Link / Image URL (for Graphics):";
+            // Unified clear prompt [2]
+            let promptText = "Paste YouTube Video Link (for Video section) OR Google Drive / Image URL (for Graphics):";
             let url = prompt(promptText);
             
             if (url && url.trim() !== "") {
